@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Спільна обгортка всіх подій. Доставка: щонайменше один раз; споживач зобов’язаний бути ідемпотентним за eventId.",
+  "type": "object",
+  "required": ["eventId", "type", "version", "occurredAt", "producer", "data"],
+  "properties": {
+    "eventId": { "type": "string", "minLength": 1, "description": "Унікальний ідентифікатор події (UUID); ключ ідемпотентності споживача." },
+    "type": { "type": "string", "description": "Назва події, наприклад order.confirmed" },
+    "version": { "type": "integer", "minimum": 1, "description": "Мажорна версія схеми даних події." },
+    "occurredAt": { "type": "string", "description": "Час події, ISO 8601 (UTC)." },
+    "producer": { "type": "string", "description": "Назва сервісу-продуцента." },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": true
+}

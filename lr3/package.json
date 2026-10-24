@@ -1,0 +1,26 @@
+{
+  "name": "food-delivery-services-lr3",
+  "version": "2.0.0",
+  "private": true,
+  "description": "ЛР3: декомпозиція системи обліку замовлень служби доставки їжі на сервіси",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "jest --runInBand",
+    "start:orders": "ts-node services/orders/main.ts",
+    "start:restaurants": "ts-node services/restaurants/main.ts",
+    "start:delivery": "ts-node services/delivery/main.ts",
+    "start:gateway": "ts-node services/gateway/main.ts",
+    "start:all": "ts-node scripts/start-all.ts",
+    "demo": "ts-node scripts/demo.ts"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "ajv": "^8.17.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "yaml": "^2.6.1"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "order.confirmed.v1.schema.json",
+  "title": "order.confirmed v1",
+  "description": "Факт: ресторан підтвердив замовлення. Продуцент: orders. Споживачі: delivery (додає замовлення до черги диспетчера).",
+  "allOf": [
+    { "$ref": "envelope.schema.json" },
+    {
+      "properties": {
+        "type": { "const": "order.confirmed" },
+        "version": { "const": 1 },
+        "producer": { "const": "orders" },
+        "data": {
+          "type": "object",
+          "required": ["orderId", "customerId", "restaurantId", "deliveryAddress", "items"],
+          "properties": {
+            "orderId": { "type": "string", "minLength": 1 },
+            "customerId": { "type": "string", "minLength": 1 },
+            "restaurantId": { "type": "string", "minLength": 1 },
+            "deliveryAddress": { "type": "string", "minLength": 1 },
+            "items": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "x-compatibility": "Додавання нових необов’язкових полів у data сумісне; видалення або зміна типу поля потребує версії v2 і паралельної публікації v1 протягом перехідного періоду."
+}

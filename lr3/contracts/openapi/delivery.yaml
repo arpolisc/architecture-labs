@@ -1,0 +1,120 @@
+openapi: 3.0.3
+info:
+  title: Сервіс доставки
+  version: 1.0.0
+  description: |
+    Власник сутностей «Кур’єр» і «Доставка» та черги диспетчера (локальна копія підтверджених замовлень).
+    Споживає подію order.confirmed (v1), публікує delivery.started (v1).
+servers:
+  - url: http://127.0.0.1:3003
+paths:
+  /deliveries/waiting:
+    get:
+      operationId: listWaiting
+      summary: Черга диспетчера
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 30, timeoutMs: 3000 }
+      responses:
+        "200":
+          description: Підтверджені замовлення, що очікують кур’єра
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DispatchRequest" }
+  /deliveries:
+    post:
+      operationId: startDelivery
+      summary: Призначити кур’єра й розпочати доставку
+      description: |
+        Ідемпотентність за `orderId`: повтор із тим самим orderId і courierId повертає наявну доставку (200);
+        той самий orderId з іншим кур’єром дає 409.
+        Після збереження публікується подія delivery.started (v1).
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 40, timeoutMs: 3000, rateLimit: 50 запитів за секунду на клієнта }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartDeliveryRequest" }
+      responses:
+        "201":
+          description: Доставку розпочато
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+        "200":
+          description: Повторний запит — повернуто наявну доставку
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+        "400":
+          description: "VALIDATION_FAILED"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: "ORDER_NOT_AWAITING_DELIVERY або COURIER_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "DELIVERY_ALREADY_ASSIGNED — для замовлення вже призначено іншого кур’єра"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: "RULE_VIOLATION — кур’єр зайнятий або замовлення вже взято в доставку"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /internal/events:
+    post:
+      operationId: receiveEvent
+      summary: Внутрішній ендпоінт споживача подій (не публікується через шлюз)
+      description: Приймає order.confirmed v1 (див. contracts/events). Ідемпотентний за eventId.
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 20, timeoutMs: 1000 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Подію оброблено, проігноровано або визнано дублікатом
+        "400":
+          description: "VALIDATION_FAILED — невірна структура події"
+components:
+  schemas:
+    StartDeliveryRequest:
+      type: object
+      required: [orderId, courierId]
+      properties:
+        orderId: { type: string, minLength: 1 }
+        courierId: { type: string, minLength: 1 }
+    Delivery:
+      type: object
+      required: [id, orderId, courierId, status]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        courierId: { type: string }
+        status: { type: string, enum: [ASSIGNED, IN_PROGRESS, COMPLETED] }
+    DispatchRequest:
+      type: object
+      required: [orderId, restaurantId, deliveryAddress]
+      properties:
+        orderId: { type: string }
+        restaurantId: { type: string }
+        deliveryAddress: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
