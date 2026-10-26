@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "delivery.started.v1.schema.json",
+  "title": "delivery.started v1",
+  "description": "Факт: кур’єра призначено, доставку розпочато. Продуцент: delivery. Споживачі: orders (переводить замовлення в статус IN_DELIVERY).",
+  "allOf": [
+    { "$ref": "envelope.schema.json" },
+    {
+      "properties": {
+        "type": { "const": "delivery.started" },
+        "version": { "const": 1 },
+        "producer": { "const": "delivery" },
+        "data": {
+          "type": "object",
+          "required": ["deliveryId", "orderId", "courierId"],
+          "properties": {
+            "deliveryId": { "type": "string", "minLength": 1 },
+            "orderId": { "type": "string", "minLength": 1 },
+            "courierId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "x-compatibility": "Правила сумісності ті самі, що й для order.confirmed v1."
+}

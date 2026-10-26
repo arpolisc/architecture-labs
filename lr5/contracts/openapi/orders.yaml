@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: Сервіс замовлень
+  version: 1.0.0
+  description: |
+    Власник сутностей «Замовлення» та «Клієнт». Публікує подію order.confirmed (v1),
+    споживає подію delivery.started (v1).
+servers:
+  - url: http://127.0.0.1:3001
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      summary: Створити замовлення
+      description: |
+        Ідемпотентність за полем `id` (ключ операції, який надає клієнт): повтор запиту з тим самим id і тими самими даними
+        повертає наявне замовлення зі статусом 200; той самий id з іншими даними дає 409.
+        Усередині виконується синхронний виклик сервісу ресторанів із тайм-аутом.
+      x-idempotent: true
+      x-guarantees:
+        typicalLatencyMs: 80
+        timeoutMs: 3000
+        rateLimit: 50 запитів за секунду на клієнта
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Замовлення створено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "200":
+          description: Повторний запит — повернуто наявне замовлення
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: "VALIDATION_FAILED — некоректне тіло запиту"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: "CUSTOMER_NOT_FOUND або RESTAURANT_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "ORDER_ID_CONFLICT — id уже використано для іншого замовлення"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: "RESTAURANT_NOT_ACCEPTING або RULE_VIOLATION (порушено доменне правило)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: "DEPENDENCY_UNAVAILABLE — сервіс ресторанів недоступний; заголовок Retry-After: 5"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      summary: Отримати замовлення
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 20, timeoutMs: 3000 }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Замовлення знайдено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: "ORDER_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /orders/{id}/confirm:
+    post:
+      operationId: confirmOrder
+      summary: Підтвердити замовлення рестораном
+      description: |
+        Не є ідемпотентною: повторне підтвердження повертає 422 RULE_VIOLATION.
+        Після збереження публікується подія order.confirmed (v1); відповідь не залежить від її обробки.
+      x-idempotent: false
+      x-guarantees: { typicalLatencyMs: 30, timeoutMs: 3000 }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Замовлення підтверджено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: "ORDER_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: "RULE_VIOLATION — підтвердити можна лише нове замовлення"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /internal/events:
+    post:
+      operationId: receiveEvent
+      summary: Внутрішній ендпоінт споживача подій (не публікується через шлюз)
+      description: |
+        Приймає delivery.started v1 (оновлення статусу замовлення) та restaurant.availability-changed v1
+        (інвалідизація кешу ресторанів), див. contracts/events. Ідемпотентний за eventId (журнал у базі даних сервісу):
+        повторна подія повертає 200 `duplicate`. 5xx і тайм-аут — продуцент повторює доставку; 4xx — dead-letter.
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 30, timeoutMs: 1000 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Подію оброблено, проігноровано або визнано дублікатом
+        "400":
+          description: "VALIDATION_FAILED — невірна структура події"
+        "404":
+          description: "ORDER_NOT_FOUND — замовлення невідоме (подію не буде повторено)"
+        "422":
+          description: "RULE_VIOLATION — подія суперечить стану замовлення"
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [id, customerId, restaurantId, deliveryAddress, items]
+      properties:
+        id: { type: string, minLength: 1 }
+        customerId: { type: string, minLength: 1 }
+        restaurantId: { type: string, minLength: 1 }
+        deliveryAddress: { type: string, minLength: 1 }
+        items:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+    Order:
+      type: object
+      required: [id, customerId, restaurantId, deliveryAddress, items, status, courierId]
+      properties:
+        id: { type: string }
+        customerId: { type: string }
+        restaurantId: { type: string }
+        deliveryAddress: { type: string }
+        items: { type: array, items: { type: string } }
+        status: { type: string, enum: [NEW, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED] }
+        courierId: { type: string, nullable: true }
+      additionalProperties: true
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }

@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: Публічний API (шлюз)
+  version: 1.0.0
+  description: |
+    Єдина точка входу для зовнішніх клієнтів. Шлюз прозоро передає запити сервісам, не публікує /internal/*
+    і перетворює відмови сервісів на єдині коди помилок.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /api/orders:
+    post: { operationId: createOrder, summary: "→ сервіс замовлень POST /orders", responses: { "201": { description: Створено }, "200": { description: Повтор } } }
+  /api/orders/{id}:
+    get: { operationId: getOrder, summary: "→ сервіс замовлень GET /orders/{id}", parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { "200": { description: OK }, "404": { description: ORDER_NOT_FOUND } } }
+  /api/orders/{id}/confirm:
+    post: { operationId: confirmOrder, summary: "→ сервіс замовлень POST /orders/{id}/confirm", parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { "200": { description: OK }, "422": { description: RULE_VIOLATION } } }
+  /api/restaurants/{id}:
+    get: { operationId: getRestaurant, summary: "→ сервіс ресторанів GET /restaurants/{id}", parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { "200": { description: OK }, "404": { description: RESTAURANT_NOT_FOUND } } }
+  /api/restaurants/{id}/pause:
+    post: { operationId: pauseRestaurant, summary: "→ сервіс ресторанів", parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { "200": { description: OK } } }
+  /api/restaurants/{id}/resume:
+    post: { operationId: resumeRestaurant, summary: "→ сервіс ресторанів", parameters: [ { name: id, in: path, required: true, schema: { type: string } } ], responses: { "200": { description: OK } } }
+  /api/deliveries/waiting:
+    get: { operationId: listWaiting, summary: "→ сервіс доставки GET /deliveries/waiting", responses: { "200": { description: OK }, "503": { description: SERVICE_UNAVAILABLE }, "504": { description: UPSTREAM_TIMEOUT } } }
+  /api/deliveries:
+    post: { operationId: startDelivery, summary: "→ сервіс доставки POST /deliveries", responses: { "201": { description: Створено }, "200": { description: Повтор }, "409": { description: DELIVERY_ALREADY_ASSIGNED } } }
+  /api/health:
+    get: { operationId: health, summary: Стан шлюзу та сервісів, responses: { "200": { description: Усі сервіси працюють }, "503": { description: Є недоступні сервіси } } }
+x-gateway-errors:
+  SERVICE_UNAVAILABLE: "503 — сервіс не відповідає на з’єднання; Retry-After: 5"
+  UPSTREAM_TIMEOUT: "504 — сервіс не відповів за 3000 мс"

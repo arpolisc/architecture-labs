@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info:
+  title: Сервіс ресторанів
+  version: 1.0.0
+  description: |
+    Власник даних про ресторани та їх готовність приймати замовлення.
+    Версіонування: мажорна версія в `info.version`; сумісні зміни (нові необов’язкові поля) не змінюють мажорну версію.
+servers:
+  - url: http://127.0.0.1:3002
+paths:
+  /restaurants/{id}:
+    get:
+      operationId: getRestaurant
+      summary: Інформація про ресторан (синхронний виклик сервісу замовлень)
+      x-idempotent: true
+      x-guarantees:
+        typicalLatencyMs: 20
+        timeoutMs: 1000
+        rateLimit: 100 запитів за секунду на клієнта
+        onClientTimeout: сервіс замовлень відхиляє нове замовлення з кодом DEPENDENCY_UNAVAILABLE
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Ресторан знайдено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Restaurant" }
+        "404":
+          description: "RESTAURANT_NOT_FOUND — ресторан не існує"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: "INTERNAL_ERROR — внутрішня помилка"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /restaurants/{id}/pause:
+    post:
+      operationId: pauseRestaurant
+      summary: Призупинити приймання замовлень
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 20, timeoutMs: 1000 }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Приймання призупинено (повторний виклик дає той самий результат)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Restaurant" }
+        "404":
+          description: "RESTAURANT_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /restaurants/{id}/resume:
+    post:
+      operationId: resumeRestaurant
+      summary: Відновити приймання замовлень
+      x-idempotent: true
+      x-guarantees: { typicalLatencyMs: 20, timeoutMs: 1000 }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Приймання відновлено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Restaurant" }
+        "404":
+          description: "RESTAURANT_NOT_FOUND"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+components:
+  schemas:
+    Restaurant:
+      type: object
+      required: [id, name, acceptingOrders]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        acceptingOrders: { type: boolean }
+      additionalProperties: true
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }

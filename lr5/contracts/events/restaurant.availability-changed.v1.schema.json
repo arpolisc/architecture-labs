@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "restaurant.availability-changed.v1.schema.json",
+  "title": "restaurant.availability-changed v1",
+  "description": "Факт: ресторан призупинив або відновив приймання замовлень. Продуцент: restaurants. Споживачі: orders (вилучає запис ресторану з кешу). Подія публікується лише при реальній зміні стану.",
+  "allOf": [
+    { "$ref": "envelope.schema.json" },
+    {
+      "properties": {
+        "type": { "const": "restaurant.availability-changed" },
+        "version": { "const": 1 },
+        "producer": { "const": "restaurants" },
+        "data": {
+          "type": "object",
+          "required": ["restaurantId", "acceptingOrders"],
+          "properties": {
+            "restaurantId": { "type": "string", "minLength": 1 },
+            "acceptingOrders": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "x-compatibility": "Споживач використовує лише restaurantId для інвалідизації кешу, тому додавання нових необов’язкових полів сумісне; порядок надходження подій не впливає на результат."
+}
